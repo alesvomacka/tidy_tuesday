@@ -1,0 +1,101 @@
+---
+title: '**Tate Art Museum Collection**'
+main_topsize: 0.2 #percent coverage of the poster
+main_bottomsize: 0.1
+output: 
+  posterdown::posterdown_betterland:
+    self_contained: false
+    pandoc_args: --mathjax
+    highlight: espresso
+    number_sections: false
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      warning = FALSE,
+                      tidy = FALSE,
+                      message = FALSE,
+                      fig.align = 'center',
+                      out.width = "100%")
+options(knitr.table.format = "html")
+```
+
+```{r data and packages}
+library(tidyverse) #data manipulation and visualization
+library(tidytuesdayR) #data download
+library(patchwork) #multiple graphs in one plot
+
+tuesdata <- tidytuesdayR::tt_load('2021-01-12') #Tate art museum datasets, use tidytuesdayR::readme() for details
+
+artwork <-  tuesdata$artwork #data on artworks at the Tate art museum (last updated 2014)
+artists <-  tuesdata$artists #data on authors at the Tate art museum (last updated 2014)
+```
+
+```{r data cleaning and preparation}
+artists = artists %>%
+  separate(col = placeOfBirth, into = c("cityofBirth", "countryofBirth"), sep = ", ", remove = FALSE) %>% 
+  separate(col = placeOfDeath, into = c("cityofDeath", "countryofDeath"), sep = ", ", remove = FALSE) %>% 
+  mutate(countryofBirth = fct_lump_min(countryofBirth, min = 10), #extracts country and city of birth, moves countries with less than 10 artists to "Other"
+         countryofDeath = fct_lump_min(countryofDeath, min = 10)) #extracts country and city of death, moves countries with less than 10 artists to "Other"
+
+artwork = artwork %>% 
+  mutate(surface = ifelse(is.na(depth) == FALSE, width * height, NA), #computes surface (only for 2D artworks)
+         volume = width * height * depth) #computes volume (only for 3D artworks)
+```
+
+# Introduction
+
+When Tate first opened its doors to the public in 1897 it had just one site, displaying a small collection of British artworks. Today it has four major sites and the national collection of British art from 1500 to the present day and international modern and contemporary art, which includes nearly 70,000 artworks.
+
+Tate presents the metadata for around 70,000 artworks that Tate owns or jointly owns with the National Galleries of Scotland as part of ARTIST ROOMS. Metadata for around 3,500 associated artists is also included.
+
+The metadata here is released under the Creative Commons Public Domain CC0 licence. Images are not included and are not part of the dataset. Use of Tate images is covered on the Copyright and permissions page. You may also license images for commercial use.
+
+The dataset in this repository was last updated in October 2014. Tate has no plans to resume updating this repository, but they are keeping it available for the time being in case this snapshot of the Tate collection is a useful tool for researchers and developers.
+
+Tate requests that you actively acknowledge and give attribution to Tate wherever possible. Attribution supports future efforts to release other data. It also reduces the amount of ‘orphaned data’, helping retain links to authoritative sources.
+
+# Artists
+
+```{r artists}
+artists_n = nrow(artists) #number of artists
+artists_men_prop = percent( nrow(subset(artists, gender == "Male")) / nrow(artists) ) #proportion of male artists
+artists_UK_prop = percent( nrow(subset(artists, countryofBirth == "United Kingdom")) / nrow(artists) ) #proportion of UK artists
+artists_US_prop = percent( nrow(subset(artists, countryofBirth == "United States")) / nrow(artists) ) #propportion of US artists
+artists_age_median = median(artists$yearOfBirth, na.rm = TRUE)
+artists_age_min = min(artists$yearOfBirth, na.rm = TRUE)
+
+artist_plot_gender = artists %>% count(gender) %>%
+                     mutate(gender = fct_reorder(gender, n, .desc = TRUE),
+                            gender = fct_explicit_na(gender, na_level = "Unknown")) %>% 
+                     ggplot(aes(x = gender, y = n)) +
+                     geom_col() +
+                     labs(x = "Gender of the artist", y = element_blank()) #gender of artists plot
+
+artist_plot_yearofBirth = artists %>% ggplot(aes(x = yearOfBirth)) +
+                          geom_histogram() +
+                          labs(x = "Year of birth", y = element_blank()) #birth year of artists plot
+
+artist_plot_countryofBirth = artists %>% count(countryofBirth) %>% 
+                             filter(!is.na(countryofBirth) & countryofBirth != "Other") %>% 
+                             slice_max(n, n = 10) %>% 
+                             mutate(countryofBirth = fct_reorder(countryofBirth, n, .desc = TRUE)) %>% 
+                             ggplot(aes(x = countryofBirth, y = n)) +
+                             geom_col() +
+                             labs(x = "Top 10 countries of origin", y = element_blank()) +
+                             scale_x_discrete(labels = wrap_format(10)) #artists country of origin plot
+
+artist_multiplot = (artist_plot_gender + artist_plot_yearofBirth) / artist_plot_countryofBirth #combines 3 plots above into single one
+```
+
+In 2014, Tate housed works from `r artists_n` artists from all all over the world. Most of these artists came from the United Kingdom (`r artists_UK_prop`) and United States (`r artists_US_prop`), but many other countries are represented, such as Germany, Spain or Italy. The majority of artists are men (`r artists_men_prop`) and half of them were born before `r artists_age_median`. The oldest artist, whose work Tate hosts, is Hans Holbein the Younger, a german painter and printmaker born in `r artists_age_min` who worked in a Northern Renaissance style, and is considered one of the greatest portraitists of the 16th century.
+
+```{r artists_multiplot}
+artist_multiplot
+```
+
+# Artworks
+
+```{r artwork}
+
+```
