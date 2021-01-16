@@ -1,9 +1,14 @@
 ---
-title: '**Tate Art Museum Collection**'
+title: '**Tate Art Museum Collection Metadata**'
+author:
+  name: "Ales Vomacka"
 main_topsize: 0.2 #percent coverage of the poster
 main_bottomsize: 0.1
+main_findings: "Tate Art Museum hosts more than **69201** artworks by **3532** artists"
+primary_colour: "#000000"
+secondary_colour: "#6b6b6b"
 output: 
-  posterdown::posterdown_betterland:
+  posterdown::posterdown_betterport:
     self_contained: false
     pandoc_args: --mathjax
     highlight: espresso
@@ -17,13 +22,17 @@ knitr::opts_chunk$set(echo = FALSE,
                       message = FALSE,
                       fig.align = 'center',
                       out.width = "100%")
-options(knitr.table.format = "html")
+options(knitr.table.format = "html",
+        scipen = 999)
 ```
 
-```{r data and packages}
+```{r data and packages, warning=FALSE, message=FALSE, include=FALSE}
 library(tidyverse) #data manipulation and visualization
 library(tidytuesdayR) #data download
 library(patchwork) #multiple graphs in one plot
+library(scales) #ggplot2 scales customization
+
+theme_set(theme_minimal())
 
 tuesdata <- tidytuesdayR::tt_load('2021-01-12') #Tate art museum datasets, use tidytuesdayR::readme() for details
 
@@ -39,7 +48,7 @@ artists = artists %>%
          countryofDeath = fct_lump_min(countryofDeath, min = 10)) #extracts country and city of death, moves countries with less than 10 artists to "Other"
 
 artwork = artwork %>% 
-  mutate(surface = ifelse(is.na(depth) == FALSE, width * height, NA), #computes surface (only for 2D artworks)
+  mutate(surface = ifelse(is.na(depth) == TRUE, width * height, NA), #computes surface (only for 2D artworks)
          volume = width * height * depth) #computes volume (only for 3D artworks)
 ```
 
@@ -48,10 +57,6 @@ artwork = artwork %>%
 When Tate first opened its doors to the public in 1897 it had just one site, displaying a small collection of British artworks. Today it has four major sites and the national collection of British art from 1500 to the present day and international modern and contemporary art, which includes nearly 70,000 artworks.
 
 Tate presents the metadata for around 70,000 artworks that Tate owns or jointly owns with the National Galleries of Scotland as part of ARTIST ROOMS. Metadata for around 3,500 associated artists is also included.
-
-The metadata here is released under the Creative Commons Public Domain CC0 licence. Images are not included and are not part of the dataset. Use of Tate images is covered on the Copyright and permissions page. You may also license images for commercial use.
-
-The dataset in this repository was last updated in October 2014. Tate has no plans to resume updating this repository, but they are keeping it available for the time being in case this snapshot of the Tate collection is a useful tool for researchers and developers.
 
 Tate requests that you actively acknowledge and give attribution to Tate wherever possible. Attribution supports future efforts to release other data. It also reduces the amount of ‘orphaned data’, helping retain links to authoritative sources.
 
@@ -90,12 +95,59 @@ artist_multiplot = (artist_plot_gender + artist_plot_yearofBirth) / artist_plot_
 
 In 2014, Tate housed works from `r artists_n` artists from all all over the world. Most of these artists came from the United Kingdom (`r artists_UK_prop`) and United States (`r artists_US_prop`), but many other countries are represented, such as Germany, Spain or Italy. The majority of artists are men (`r artists_men_prop`) and half of them were born before `r artists_age_median`. The oldest artist, whose work Tate hosts, is Hans Holbein the Younger, a german painter and printmaker born in `r artists_age_min` who worked in a Northern Renaissance style, and is considered one of the greatest portraitists of the 16th century.
 
-```{r artists_multiplot}
+```{r, fig.cap="Gender of artists, Year of birth and most common country of birth"}
 artist_multiplot
 ```
 
 # Artworks
 
 ```{r artwork}
+artwork_n = nrow(artwork) #number of artworks
+artwork_surface_min = min(artwork$surface, na.rm = TRUE) /100 #Area of the smallest artwork (only 2D)
+artwork_surface_max = max(artwork$surface, na.rm = TRUE) /100 #Area of the biggest artwork (only 2D)
 
+artwork_surface_max5 =  artwork %>% filter(!is.na(medium)) %>%  
+                        count(medium) %>% slice_max(n, n = 5) %>% 
+                        mutate(medium_freq  = paste0(medium, " (", n, " pieces)")) #5 largest medium groups
+
+artwork_surface_max5_vector = artwork_surface_max5 %>% pull(medium) #vector of the TOP 5 most common mediums
+
+artwork_surface_max5_vector_text = artwork_surface_max5 %>% pull(medium_freq) %>% paste(collapse = ", ") %>%
+                                   sub(pattern = ",([^,]*)$", replacement = " and\\1") #text vector of the TOP 5 most common mediums
+
+artwork_medium_surface_plot = artwork %>%  
+                              filter(medium == artwork_surface_max5_vector) %>% 
+                              ggplot(aes(x = medium, y = surface / 100)) +
+                              geom_boxplot() +
+                              scale_y_log10() +
+                              scale_x_discrete(label = wrap_format(10)) +
+                              labs(x = "Medium", y = "Surface area in centimeters") #graph of artwork size per medium (TOP 5)
+  
+artwork_acquisitions_plot = artwork %>% count(acquisitionYear) %>% 
+  mutate(cumsum = cumsum(n)) %>% 
+  ggplot(aes(x = acquisitionYear, y = cumsum)) +
+  geom_line() +
+  labs(x = "Year", y = "Number of artworks") #graph of number of artworks by year
+```
+
+As of 2014, Tate Art Museum hosted `r artwork_n` pieces of artwork from artists all over the world. The museum has been steadily collecting art pieces since the beginning of the 19th century. The single biggest contribution was the so called Turner Bequest in 1856.
+
+British painter J.M.W. Turner (1775-1851) enjoyed a highly successful artistic career. When he died he bequeathed to the nation a large number of his paintings, including 'Dido building Carthage' and 'Sun Rising through Vapour'. These two paintings came with the condition that they should be displayed alongside Claude’s 'Landscape with the Marriage of Isaac and Rebecca' and 'Seaport with the Embarkation of the Queen of Sheba' (view paintings).
+
+By linking these paintings together Turner wanted to ensure that his association with the earlier Old Master, Claude, would endure beyond his lifetime. After some of Turner’s cousins contested his will, a settlement was reached which, in the end, resulted in a much larger gift of works of art to the nation.
+
+The entire bequest – most of which is now housed in the Clore Gallery at Tate Britain – comprises nearly 300 oil paintings and around 30,000 sketches and watercolours, including 300 sketchbooks. More details on the this generous gift can be found at the [UK National gallery website](https://www.nationalgallery.org.uk/about-us/history/the-turner-bequest).
+
+```{r, fig.cap="Collection size by year"}
+artwork_acquisitions_plot
+```
+
+# From the biggest to the smallest
+
+The Tate art museum offers its visitors a variable collection of art, from pen sketches to statues. By far the most popular mediums are `r artwork_surface_max5_vector_text`. The artwork varies in size as well. The biggest art piece that has to offer is "No Title (Table and Four Chairs)" by Robert Therrien, with a surface area of `r artwork_surface_max` centimeters. It is a multi-part sculpture of a dining room set, enlarged to three times its original size. It consists of five objects: one table and four chairs, which are arranged around the respective sides of the table, drawn out slightly to leave a space in each case between the table edge and chair leg. The colossal sculpture stands over ten feet high, tall enough for viewers to walk easily beneath its vast expanse. Although the sculpture mimics the wooden construction of a typical dining room set, it is created with a mixture of aluminium, steel, wood and plastic.
+
+On the other side of the spectrum Thème de Ballet by E.L.T. Mesens, which is a collage of corrugated paper, pieces of broken knitting needles and other materials on card. This artwork is only `r artwork_surface_min` centimeters in surface.
+
+```{r, fig.cap="Top 5 most popular mediums and the size of the artworks"}
+artwork_medium_surface_plot
 ```
